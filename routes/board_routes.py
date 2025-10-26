@@ -3,7 +3,8 @@ from pydantic import BaseModel
 import random
 from boardlib.api import moon, aurora
 
-router = APIRouter(prefix="/fetch-board-data", tags=["Board Data"])
+# router = APIRouter(prefix="/fetch-board-data", tags=["Board Data"])
+router = APIRouter(tags=["Board Data"])
 
 # --- Request body model ---
 class FetchBoardRequest(BaseModel):
@@ -13,7 +14,8 @@ class FetchBoardRequest(BaseModel):
     password: str = None
 
 
-@router.post("/")
+# @router.post("/")
+@router.post("/fetch-board-data")
 async def fetch_board_data(payload: FetchBoardRequest):
     """
     Fetch climbing data for a given board (MoonBoard, Aurora, etc.)
