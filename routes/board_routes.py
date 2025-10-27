@@ -16,7 +16,8 @@ class FetchBoardRequest(BaseModel):
 
 # @router.post("/")
 @router.post("/fetch-board-data")
-async def fetch_board_data(payload: FetchBoardRequest):
+async def fetch_board_data(payload: FetchBoardRequest): 
+    # remove async
     """
     Fetch climbing data for a given board (MoonBoard, Aurora, etc.)
     Optionally uses credentials if the API requires them.
