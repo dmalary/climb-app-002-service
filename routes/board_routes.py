@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 import random
 from boardlib.api import moon, aurora
+# tension, decoy, kilter
 
 # router = APIRouter(prefix="/fetch-board-data", tags=["Board Data"])
 router = APIRouter(tags=["Board Data"])
@@ -36,11 +37,23 @@ def fetch_board_data(payload: FetchBoardRequest):
             client.login()
             climbs = client.get_user_problems()
 
-        elif board == "aurora":
+        # elif board == "aurora":
+        #     if not username or not password:
+        #         raise HTTPException(status_code=400, detail="Missing Aurora credentials")
+
+        #     client = aurora.AuroraBoard(username=username, password=password)
+        #     # can i update this line to handle aurora.tension or .decoy, etc
+        #     client.login()
+        #     climbs = client.get_user_problems()
+
+        elif board in ["aurora", "tension", "decoy", "grasshopper", "kilter", "soill", "touchstone"]:
             if not username or not password:
                 raise HTTPException(status_code=400, detail="Missing Aurora credentials")
 
-            client = aurora.AuroraBoard(username=username, password=password)
+            # Get the correct host for this board
+            host = aurora.HOST_BASES.get(board, "auroraboardapp") #string is a fallback
+
+            client = aurora.AuroraBoard(username=username, password=password, host=host)
             client.login()
             climbs = client.get_user_problems()
 
