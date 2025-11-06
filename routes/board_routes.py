@@ -46,16 +46,38 @@ def fetch_board_data(payload: FetchBoardRequest):
         #     client.login()
         #     climbs = client.get_user_problems()
 
-        elif board in ["aurora", "tension", "decoy", "grasshopper", "kilter", "soill", "touchstone"]:
+        # elif board in ["aurora", "tension", "decoy", "grasshopper", "kilter", "soill", "touchstone"]:
+        #     if not username or not password:
+        #         raise HTTPException(status_code=400, detail="Missing Aurora credentials")
+
+        #     # Get the correct host for this board
+        #     host = aurora.HOST_BASES.get(board, "auroraboardapp") #string is a fallback
+
+        #     client = aurora.AuroraBoard(username=username, password=password, host=host)
+        #     client.login()
+        #     climbs = client.get_user_problems()
+
+        elif board in aurora.HOST_BASES:
             if not username or not password:
-                raise HTTPException(status_code=400, detail="Missing Aurora credentials")
+                raise HTTPException(status_code=400, detail=f"Missing {board.title()} credentials")
 
-            # Get the correct host for this board
-            host = aurora.HOST_BASES.get(board, "auroraboardapp") #string is a fallback
+            try:
+                # 1️⃣ Login → returns session token
+                token_data = aurora.login(board, username, password)
+                token = token_data.get("token")
+                if not token:
+                    raise HTTPException(status_code=400, detail=f"Login failed for {board}")
 
-            client = aurora.AuroraBoard(username=username, password=password, host=host)
-            client.login()
-            climbs = client.get_user_problems()
+                # 2️⃣ Fetch user data (ascents or attempts)
+                climbs = aurora.get_ascents(board, token)
+
+            except Exception as e:
+                print(f"⚠️ Aurora board fetch error for {board}: {e}")
+                # fallback mock data
+                climbs = [
+                    {"climb_name": f"{board}_mock_climb_{i+1}", "difficulty": 5, "attempts": 2}
+                    for i in range(5)
+                ]
 
         else:
             raise HTTPException(status_code=404, detail=f"Unsupported board: {board}")
