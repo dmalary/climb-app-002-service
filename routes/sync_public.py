@@ -44,7 +44,7 @@ def extract_climbs_from_db(db_path: str) -> List[Dict[str, Any]]:
 
 
 # @router.post("/")
-@router.post("/sync-public")
+@router.post("/sync-public-data")
 def sync_public_board(payload: SyncPublicRequest):
     """
     Sync the public climb database for a given board using boardlib.
