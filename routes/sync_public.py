@@ -34,7 +34,8 @@ def extract_climbs_from_db(db_path: str) -> List[Dict[str, Any]]:
     if "climbs" not in tables:
         raise ValueError(f"No 'climbs' table found in database. Found tables: {tables}")
 
-    cursor.execute("SELECT * FROM climbs LIMIT 10;")  # preview
+    # cursor.execute("SELECT * FROM climbs LIMIT 10;")  # preview
+    cursor.execute("SELECT * FROM climbs")
     columns = [desc[0] for desc in cursor.description]
     rows = cursor.fetchall()
     conn.close()
@@ -94,7 +95,7 @@ def sync_public_board(payload: SyncPublicRequest):
             "board": board,
             "status": "ok",
             "climb_count": len(climbs),
-            # "climbs": climbs,
+            "climbs": climbs,
             "sample": climbs[:1],  # return only first few climbs for preview
         }
 
