@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 # Import your routes
-from routes.board_routes import router as board_router
+from routes.user_board_routes import router as import_private_router
 from routes.sync_public import router as sync_public_router
 
 load_dotenv()
@@ -26,5 +26,5 @@ def root():
     return {"message": "Board service running"}
 
 # --- Register routers ---
-app.include_router(board_router)
+app.include_router(import_private_router)
 app.include_router(sync_public_router)
