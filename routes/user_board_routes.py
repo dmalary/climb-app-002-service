@@ -91,4 +91,5 @@ def fetch_board_data(payload: FetchBoardRequest):
         "board": board,
         "status": "ok",
         "data": sessions,
+        "sample": sessions[0]["climbs"][:3],
     }
