@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 # Import your routes
-from routes.user_board_routes import router as import_private_router
+from routes.sync_user import router as import_private_router
 from routes.sync_public import router as sync_public_router
 
 load_dotenv()
