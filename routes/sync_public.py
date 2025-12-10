@@ -6,9 +6,20 @@ import sqlite3
 from typing import List, Dict, Any
 import tempfile
 import json
+import sys
 
 # router = APIRouter(prefix="/sync-public", tags=["Public Board Data"])
 router = APIRouter(tags=["Public Board Data"])
+
+def get_python_bin():
+    """
+    Returns the path to the active Python binary (prefer venv Python 3.14 if available).
+    """
+    python_bin = sys.executable  # current Python running this code
+    if os.path.exists(python_bin):
+        return python_bin
+    # fallback to system Python
+    return "/usr/bin/python3.14"
 
 # --- Request model ---
 class SyncPublicRequest(BaseModel):
@@ -51,6 +62,7 @@ def sync_public_board(payload: SyncPublicRequest):
     Sync the public climb database for a given board using boardlib.
     Downloads or updates the SQLite DB, parses climb data, and returns metadata.
     """
+    python_bin = get_python_bin()
 
     board = payload.board.lower().strip()
     username = payload.username
@@ -62,7 +74,9 @@ def sync_public_board(payload: SyncPublicRequest):
     try:
         # --- Step 1: Build the boardlib database command ---
         cmd = [
-            "boardlib",
+            python_bin,
+            "-m",
+            "boardlib", 
             "database",
             board,
             db_path,
