@@ -1,48 +1,80 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import Optional
 import subprocess
+import csv
 import json
+import sys
+import tempfile
+import os
 
-router = APIRouter(tags=["Board Data"])
+router = APIRouter()
+
+def get_python_bin():
+    return sys.executable
+
 
 class FetchBoardRequest(BaseModel):
     board: str
     username: str
     database_path: str
-    password: Optional[str] = None  # ✅ harmless, ignored by CLI
+    password: str | None = None
 
-# def run_user_logbook(board, username, password, database_path):
-def run_user_logbook(board, username, database_path):
-    """
-    Runs: boardlib logbook <board> --username=<username> --database-path=<db_path> --output=logbook.json
-    Returns parsed JSON logbook content. Raises RuntimeError on CLI failure.
-    """    
+
+@router.post("/fetch-user-board-data")
+def fetch_user(data: FetchBoardRequest):
+
+    python_bin = get_python_bin()
+
+    # Temporary CSV file for output
+    tmp_fd, tmp_csv_path = tempfile.mkstemp(suffix=".csv")
+    os.close(tmp_fd)
+
+    # Build boardlib logbook command
+    args = [
+        python_bin, "-m", "boardlib",
+        "logbook", data.board,
+        f"--username={data.username}",
+        f"--database-path={data.database_path}",
+        f"--output={tmp_csv_path}",
+        # f"--password={data.password}",
+    ]
+
+    # Prepare the password for interactive prompt
+    stdin_input = None
+    if data.password:
+        stdin_input = f"{data.password}\n"
+
+    # Call boardlib with stdin support
     result = subprocess.run(
-        [
-            "boardlib", "logbook", board,
-            f"--username={username}",
-            f"--database-path={database_path}",
-            # f"--password={password}",
-            "--output=logbook.json"
-        ],
+        args,
+        input=stdin_input,   # send password
         capture_output=True,
         text=True
     )
 
+    print("=== boardlib stdout ===")
+    print(result.stdout)
+    print("=== boardlib stderr ===")
+    print(result.stderr)
+
     if result.returncode != 0:
-        raise RuntimeError(result.stderr)
+        raise HTTPException(
+            status_code=500,
+            detail=f"boardlib failed: {result.stderr}"
+        )
 
-    with open("logbook.json") as f:
-        return json.load(f)
+    # Validate CSV exists
+    if not os.path.exists(tmp_csv_path):
+        raise HTTPException(status_code=500, detail="CSV not created")
 
-@router.post("/fetch-user-board-data")
-def fetch_user(data: FetchBoardRequest):
-    # logbook = run_user_logbook(data.board, data.username, data.password, data.db_path)
-    logbook = run_user_logbook(
-        board=data.board,
-        username=data.username,
-        database_path=data.database_path,
-        # password=data.password
-    )
-    return logbook
+    # Convert CSV → JSON
+    logbook = []
+    with open(tmp_csv_path, "r") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            logbook.append(row)
+
+    # Cleanup file
+    os.remove(tmp_csv_path)
+
+    return {"logbook": logbook}

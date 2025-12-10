@@ -1,7 +1,10 @@
-import os
+# import os
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+import sys
+
+print("🔍 FastAPI running with Python:", sys.executable)
 
 # Import your routes
 from routes.sync_user import router as import_private_router
