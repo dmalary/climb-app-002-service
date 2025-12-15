@@ -40,9 +40,7 @@ def fetch_user(data: FetchBoardRequest):
     ]
 
     # Prepare the password for interactive prompt
-    stdin_input = None
-    if data.password:
-        stdin_input = f"{data.password}\n"
+    stdin_input = f"{data.password}\n" if data.password else None
 
     # Call boardlib with stdin support
     result = subprocess.run(

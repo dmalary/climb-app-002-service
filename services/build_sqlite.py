@@ -29,12 +29,13 @@ def get_python_bin():
 # ---------------------------------------------------
 #  Main logic
 # ---------------------------------------------------
-def build_or_download_board_db(board: str) -> str:
+def build_or_download_board_db(board: str, username: str | None = None, password: str | None = None) -> str:
     """
     Returns local path to the SQLite DB by:
     1. Checking local cache
     2. Downloading from Supabase cache
     3. Building using boardlib CLI if needed
+    Supports optional username/password for boards that require login.
     """
 
     os.makedirs(CACHE_DIR, exist_ok=True)
@@ -47,7 +48,6 @@ def build_or_download_board_db(board: str) -> str:
 
     # 2️⃣ Try Supabase
     print(f"📡 Checking Supabase for cached DB: {board}.db")
-
     try:
         bucket = supabase.storage.from_("board-dbs")
         dl = bucket.download(f"{board}.db")
@@ -61,7 +61,6 @@ def build_or_download_board_db(board: str) -> str:
             if isinstance(dl, bytes):
                 with open(local_path, "wb") as f:
                     f.write(dl)
-
                 print(f"⬇️ Downloaded cached DB for '{board}'")
                 return local_path
 
@@ -69,7 +68,6 @@ def build_or_download_board_db(board: str) -> str:
             if hasattr(dl, "data") and dl.data:
                 with open(local_path, "wb") as f:
                     f.write(dl.data)
-
                 print(f"⬇️ Downloaded cached DB for '{board}'")
                 return local_path
 
@@ -89,11 +87,16 @@ def build_or_download_board_db(board: str) -> str:
         board,
         local_path
     ]
+    if username:
+        cmd += ["--username", username]
+
+    # Prepare password for stdin prompt
+    stdin_input = f"{password}\n" if password else None
 
     print(f"🛠 Running boardlib:\n{' '.join(cmd)}")
-
     result = subprocess.run(
         cmd,
+        input=stdin_input,
         capture_output=True,
         text=True
     )
