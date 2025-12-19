@@ -31,3 +31,5 @@ yarn-error.log*
 tmp
 dist
 __pycache__/
+
+/data
