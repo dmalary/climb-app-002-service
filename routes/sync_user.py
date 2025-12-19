@@ -2,77 +2,142 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 import subprocess
 import csv
-import json
 import sys
 import tempfile
 import os
+import pexpect
 
-router = APIRouter()
+from services.build_sqlite import build_or_download_board_db
+
+router = APIRouter(tags=["User Board Data"])
+
 
 def get_python_bin():
     return sys.executable
 
 
+# ---------------------------------------------------
+# Request model
+# ---------------------------------------------------
+
 class FetchBoardRequest(BaseModel):
     board: str
     username: str
-    database_path: str
     password: str | None = None
 
 
-@router.post("/fetch-user-board-data")
-def fetch_user(data: FetchBoardRequest):
+# ---------------------------------------------------
+# Route
+# ---------------------------------------------------
 
+@router.post("/fetch-user-board-data")
+def fetch_user_board_data(data: FetchBoardRequest):
+    """
+    Fetch authenticated user logbook data for a board.
+    Ensures a FULL (logbook-capable) SQLite DB exists before running boardlib.
+    """
+
+    board = data.board.lower().strip()
     python_bin = get_python_bin()
 
-    # Temporary CSV file for output
+    # ---------------------------------------------------
+    # 1️⃣ Ensure logbook-capable DB
+    # ---------------------------------------------------
+    try:
+        db_path = build_or_download_board_db(
+            board=board,
+            username=data.username,
+            password=data.password,
+            require="logbook",
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    if not os.path.exists(db_path):
+        raise HTTPException(
+            status_code=500,
+            detail=f"Database not found at {db_path}",
+        )
+
+    # ---------------------------------------------------
+    # 2️⃣ Temp CSV output
+    # ---------------------------------------------------
     tmp_fd, tmp_csv_path = tempfile.mkstemp(suffix=".csv")
     os.close(tmp_fd)
 
-    # Build boardlib logbook command
-    args = [
-        python_bin, "-m", "boardlib",
-        "logbook", data.board,
-        f"--username={data.username}",
-        f"--database-path={data.database_path}",
-        f"--output={tmp_csv_path}",
-        # f"--password={data.password}",
-    ]
+    # ---------------------------------------------------
+    # 3️⃣ Build boardlib logbook command
+    # ---------------------------------------------------
+    # cmd = [
+    #     python_bin,
+    #     "-m",
+    #     "boardlib",
+    #     "logbook",
+    #     board,
+    #     f"--username={data.username}",
+    #     f"--database-path={db_path}",
+    #     f"--output={tmp_csv_path}",
+    # ]
 
-    # Prepare the password for interactive prompt
-    stdin_input = f"{data.password}\n" if data.password else None
+    # stdin_input = f"{data.password}\n" if data.password else None
 
-    # Call boardlib with stdin support
-    result = subprocess.run(
-        args,
-        input=stdin_input,   # send password
-        capture_output=True,
-        text=True
-    )
+    # print("📘 Running boardlib logbook:")
+    # print(" ", " ".join(cmd))
 
-    print("=== boardlib stdout ===")
-    print(result.stdout)
-    print("=== boardlib stderr ===")
-    print(result.stderr)
+    # result = subprocess.run(
+    #     cmd,
+    #     input=stdin_input,
+    #     capture_output=True,
+    #     text=True,
+    # )
 
-    if result.returncode != 0:
+    # print("=== boardlib stdout ===")
+    # print(result.stdout)
+    # print("=== boardlib stderr ===")
+    # print(result.stderr)
+
+    # if result.returncode != 0:
+    #     os.remove(tmp_csv_path)
+    #     raise HTTPException(
+    #         status_code=500,
+    #         detail=f"boardlib logbook failed: {result.stderr or result.stdout}",
+    #     )
+
+    cmd = f"{python_bin} -m boardlib logbook {board} --username={data.username} --database-path={db_path} --output={tmp_csv_path}"
+
+    print("📘 Running boardlib logbook via pexpect:")
+    print(" ", cmd)
+
+    try:
+        child = pexpect.spawn(cmd)
+        if data.password:
+            child.expect("Password:")  # matches boardlib prompt
+            child.sendline(data.password)
+        child.expect(pexpect.EOF)
+        output = child.before.decode()  # capture stdout/stderr
+    except Exception as e:
+        os.remove(tmp_csv_path)
+        raise HTTPException(status_code=500, detail=f"boardlib logbook failed: {str(e)}")
+
+    # ---------------------------------------------------
+    # 4️⃣ Parse CSV → JSON
+    # ---------------------------------------------------
+    if not os.path.exists(tmp_csv_path):
         raise HTTPException(
             status_code=500,
-            detail=f"boardlib failed: {result.stderr}"
+            detail="boardlib did not produce CSV output",
         )
 
-    # Validate CSV exists
-    if not os.path.exists(tmp_csv_path):
-        raise HTTPException(status_code=500, detail="CSV not created")
-
-    # Convert CSV → JSON
     logbook = []
-    with open(tmp_csv_path, "r") as f:
+    with open(tmp_csv_path, "r", newline="") as f:
         reader = csv.DictReader(f)
         for row in reader:
             logbook.append(row)
 
-    # Cleanup file
     os.remove(tmp_csv_path)
 
-    return {"logbook": logbook}
+    return {
+        "board": board,
+        "entries": logbook,
+        "count": len(logbook),
+    }
