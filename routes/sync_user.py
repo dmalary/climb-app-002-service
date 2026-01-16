@@ -132,9 +132,24 @@ def fetch_user_board_data(data: FetchBoardRequest):
     with open(tmp_csv_path, "r", newline="") as f:
         reader = csv.DictReader(f)
         for row in reader:
+            # Normalize fields
+            date = row["date"]
+            climb_name = row["climb_name"]
+            tries_total = row.get("tries_total") or "1"
+            sessions_count = row.get("sessions_count") or "1"
+
+            if not date or not climb_name:
+                continue  # skip malformed rows
+
+            # Deterministic unique ID
+            row["board_attempt_id"] = f"{date}|{climb_name}|{tries_total}|{sessions_count}"
+            # row["board_attempt_id"] = f"{"date"}|{"climb_name"}|{"tries_total"}|{"sessions_count"}"
+            
             logbook.append(row)
 
     os.remove(tmp_csv_path)
+
+    print("🧪 Sample attempt:", logbook[0])
 
     return {
         "board": board,
