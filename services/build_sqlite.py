@@ -15,16 +15,14 @@ SUPABASE_URL = os.environ.get("PUBLIC_SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 
 if not SUPABASE_URL or not SUPABASE_KEY:
-    raise RuntimeError(
-        "Supabase URL or KEY not found. Check .env and FastAPI environment."
-    )
+    raise RuntimeError("Supabase URL or KEY not found")
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 CACHE_DIR = "server/board_dbs"
 BUCKET_NAME = "board-dbs"
 
-# Boards that REQUIRE authentication to build a complete DB
+# Boards that REQUIRE auth for full DBs
 AUTH_REQUIRED_BOARDS = {"kilter", "moon"}
 
 
@@ -33,32 +31,87 @@ AUTH_REQUIRED_BOARDS = {"kilter", "moon"}
 # ---------------------------------------------------
 
 def get_python_bin() -> str:
-    """Ensure FastAPI uses the same Python interpreter."""
     return sys.executable
 
 
-def has_required_image_tables(db_path: str) -> bool:
+def get_tables(db_path: str) -> set[str]:
+    conn = sqlite3.connect(db_path)
+    cur = conn.cursor()
+    cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
+    tables = {row[0] for row in cur.fetchall()}
+    conn.close()
+    return tables
+
+
+def has_image_capability(db_path: str) -> bool:
     """
-    Verify DB contains tables required for image + layout operations.
-    Prevents using partially-built (unauthenticated) DBs.
+    Required for:
+    - images
+    - layout rendering
     """
     try:
-        conn = sqlite3.connect(db_path)
-        cur = conn.cursor()
-        cur.execute("""
-            SELECT name FROM sqlite_master
-            WHERE type='table'
-            AND name='product_sizes_layouts_sets'
-        """)
-        exists = cur.fetchone() is not None
-        conn.close()
-        return exists
+        tables = get_tables(db_path)
+        return "product_sizes_layouts_sets" in tables
     except Exception:
         return False
 
 
+def has_logbook_capability(db_path: str) -> bool:
+    """
+    Required for:
+    - logbook
+    - attempts
+    - climb name resolution
+    """
+    try:
+        tables = get_tables(db_path)
+        return {
+            "climbs",
+            "product_sizes_layouts_sets",
+        }.issubset(tables)
+    except Exception:
+        return False
+    
+def has_public_capability(db_path: str) -> bool:
+    """
+    Required for:
+    - problem definitions
+    - hold coordinates
+    - image overlays
+    """
+    try:
+        tables = get_tables(db_path)
+        return {
+            "problems",
+            "problem_holds",
+            "holds",
+            "product_sizes_layouts_sets",
+        }.issubset(tables)
+    except Exception:
+        return False
+
+def has_catalog_capability(db_path: str) -> bool:
+    try:
+        tables = get_tables(db_path)
+        return {
+            "climbs",
+            "product_sizes_layouts_sets",
+        }.issubset(tables)
+    except Exception:
+        return False
+
+def has_geometry_capability(db_path: str) -> bool:
+    try:
+        tables = get_tables(db_path)
+        return {
+            "problems",
+            "problem_holds",
+            "holds",
+        }.issubset(tables)
+    except Exception:
+        return False
+
 def download_from_supabase(board: str, local_path: str) -> bool:
-    """Attempt to download cached DB from Supabase."""
     try:
         bucket = supabase.storage.from_(BUCKET_NAME)
         data = bucket.download(f"{board}.db")
@@ -80,18 +133,17 @@ def download_from_supabase(board: str, local_path: str) -> bool:
 
 
 def upload_to_supabase(board: str, local_path: str):
-    """Upload DB to Supabase cache."""
     try:
         with open(local_path, "rb") as f:
             supabase.storage.from_(BUCKET_NAME).upload(
                 f"{board}.db",
                 f,
                 upsert=True,
-                content_type="application/octet-stream"
+                content_type="application/octet-stream",
             )
         print(f"☁️ Uploaded '{board}.db' to Supabase cache")
     except Exception as e:
-        print(f"⚠️ Failed to upload DB to Supabase: {e}")
+        print(f"⚠️ Supabase upload failed: {e}")
 
 
 # ---------------------------------------------------
@@ -100,59 +152,81 @@ def upload_to_supabase(board: str, local_path: str):
 
 def build_or_download_board_db(
     board: str,
+    *,
+    # user_id: str,          # 👈 NEW (Clerk user id)
     username: str | None = None,
-    password: str | None = None
+    password: str | None = None,
+    # require: str = "logbook",  # "images" | "logbook" | "public"
+    require: str = "catalog"  # layouts | catalog | geometry | logbook
 ) -> str:
     """
-    Returns a local path to a valid SQLite DB for a board.
+    Returns path to a DB that satisfies required capability.
 
-    Strategy:
-    1. Use local cache if valid
-    2. Download from Supabase cache if valid
-    3. Build via boardlib CLI (with auth if required)
-    4. Upload validated DB back to Supabase
+    require:
+      - "images"   → image/layout tables
+      - "logbook"  → climbs + layouts (default)
     """
 
     os.makedirs(CACHE_DIR, exist_ok=True)
     local_path = os.path.join(CACHE_DIR, f"{board}.db")
+    # user_dir = os.path.join(CACHE_DIR, "users", user_id)
+    # os.makedirs(user_dir, exist_ok=True)
+
+    # local_path = os.path.join(user_dir, f"{board}.db")
+
+#     If you are on:
+
+# Vercel serverless → ❌ breaks
+
+# ephemeral Docker → ❌ breaks
+
+# You need:
+
+# persistent volume
+
+# OR upload user DBs to object storage (S3) on shutdown/startup
+
+    def is_valid(db_path: str) -> bool:
+        # if require == "images":
+        if require == "layouts":
+            return has_image_capability(db_path)
+        if require == "catalog":
+            return has_catalog_capability(db_path)
+        if require == "geometry":
+            return has_geometry_capability(db_path)
+        # if require == "public":
+        #     return has_public_capability(db_path)
+        return has_logbook_capability(db_path)
 
     # ---------------------------------------------------
-    # 1️⃣ Local cache (validated)
+    # 1️⃣ Local cache
     # ---------------------------------------------------
     if os.path.exists(local_path):
-        if board in AUTH_REQUIRED_BOARDS:
-            if has_required_image_tables(local_path):
-                print(f"✅ Valid authenticated DB found locally for '{board}'")
-                return local_path
-            else:
-                print(f"♻️ Incomplete DB detected for '{board}', rebuilding…")
-                os.remove(local_path)
-        else:
-            print(f"✅ Local DB found for '{board}'")
+        if is_valid(local_path):
+            print(f"✅ Using local {require}-capable DB for '{board}'")
             return local_path
+
+        print(f"♻️ Local DB missing {require} capability, rebuilding")
+        os.remove(local_path)
 
     # ---------------------------------------------------
     # 2️⃣ Supabase cache
     # ---------------------------------------------------
-    print(f"📡 Checking Supabase cache for '{board}.db'")
-    if download_from_supabase(board, local_path):
-        if board in AUTH_REQUIRED_BOARDS:
-            if has_required_image_tables(local_path):
-                print(f"⬇️ Downloaded valid authenticated DB for '{board}'")
-                return local_path
-            else:
-                print(f"🧨 Supabase DB incomplete for '{board}', discarding")
-                os.remove(local_path)
-        else:
-            print(f"⬇️ Downloaded DB for '{board}'")
-            return local_path
+    # print(f"📡 Checking Supabase cache for '{board}.db'")
+    # if download_from_supabase(board, local_path):
+    #     if is_valid(local_path):
+    #         print(f"⬇️ Using Supabase {require}-capable DB for '{board}'")
+    #         return local_path
+
+    #     print(f"🧨 Supabase DB missing {require} capability, discarding")
+    #     os.remove(local_path)
 
     # ---------------------------------------------------
-    # 3️⃣ Build DB via boardlib
+    # 3️⃣ Build via boardlib
     # ---------------------------------------------------
     if board in AUTH_REQUIRED_BOARDS and (not username or not password):
         raise RuntimeError(
-            f"Board '{board}' requires username/password to build full DB"
+            f"Board '{board}' requires username/password for full DB"
         )
 
     python_bin = get_python_bin()
@@ -162,11 +236,11 @@ def build_or_download_board_db(
         "boardlib",
         "database",
         board,
-        local_path
+        local_path,
     ]
 
     if username:
-        cmd += ["--username", username]
+        cmd.append(f"--username={username}")
 
     stdin_input = f"{password}\n" if password else None
 
@@ -177,29 +251,29 @@ def build_or_download_board_db(
         cmd,
         input=stdin_input,
         capture_output=True,
-        text=True
+        text=True,
     )
 
     if result.returncode != 0:
         print("❌ boardlib stdout:\n", result.stdout)
         print("❌ boardlib stderr:\n", result.stderr)
-        raise RuntimeError(f"boardlib failed for board '{board}'")
+        raise RuntimeError("boardlib database build failed")
 
     # ---------------------------------------------------
     # 4️⃣ Validate built DB
     # ---------------------------------------------------
-    if board in AUTH_REQUIRED_BOARDS:
-        if not has_required_image_tables(local_path):
-            raise RuntimeError(
-                f"boardlib built an incomplete DB for '{board}'. "
-                "Authentication likely failed."
-            )
+    if not is_valid(local_path):
+        raise RuntimeError(
+            f"boardlib built DB without required '{require}' capability. "
+            "Authentication likely failed."
+        )
 
-    print(f"🎉 Successfully built DB for '{board}'")
+    print(f"🎉 Successfully built {require}-capable DB for '{board}'")
 
     # ---------------------------------------------------
-    # 5️⃣ Upload to Supabase
+    # 5️⃣ Cache to Supabase
     # ---------------------------------------------------
-    upload_to_supabase(board, local_path)
+    upload_to_supabase(board, local_path) 
+    # Disable Supabase caching for authenticated DBs. Only cache: public, catalog, geometry
 
     return local_path

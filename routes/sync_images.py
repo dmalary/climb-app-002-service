@@ -35,7 +35,7 @@ def fetch_board_images(payload: SyncImagesRequest):
 
     try:
         # Step 1: Ensure DB exists
-        db_path = build_or_download_board_db(board=board, username=username, password=password)
+        db_path = build_or_download_board_db(board=board, username=username, password=password, require="layouts")
         if not os.path.exists(db_path):
             raise HTTPException(status_code=500, detail=f"DB file not found at {db_path}")
 
@@ -67,6 +67,8 @@ def fetch_board_images(payload: SyncImagesRequest):
         ]
         # if username:
         #     cmd += ["--username", username]
+
+        # check if terminal prompt for pass, if yes then update re sync_user
 
         # stdin_input = f"{password}\n" if password else None
         stdin_input = None  # not needed

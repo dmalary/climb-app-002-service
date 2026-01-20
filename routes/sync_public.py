@@ -128,7 +128,7 @@ def sync_public_board(payload: SyncPublicRequest):
             "status": "ok",
             "climb_count": len(climbs),
             "sample": climbs[:1],
-            # "climbs": climbs,
+            "climbs": climbs,
         }
 
     except Exception as e:

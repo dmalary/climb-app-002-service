@@ -11,6 +11,7 @@ from routes.sync_user import router as import_private_router
 from routes.sync_public import router as sync_public_router
 from routes.export_board import router as export_board_router
 from routes.sync_images import router as sync_images_router
+from routes.render_climb_image import router as render_images_router
 
 load_dotenv()
 
@@ -35,3 +36,4 @@ app.include_router(import_private_router)
 app.include_router(sync_public_router)
 app.include_router(export_board_router)
 app.include_router(sync_images_router)
+app.include_router(render_images_router)
