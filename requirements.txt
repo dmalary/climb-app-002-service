@@ -1,0 +1,18 @@
+# Core API
+fastapi==0.128.0
+uvicorn==0.40.0
+
+# Config/env
+python-dotenv==1.2.1
+
+# Data validation (FastAPI uses this under the hood)
+pydantic==2.12.5
+
+# Supabase client (Postgres + Storage)
+supabase==2.27.2
+
+# Image rendering
+pillow==12.1.0
+
+# If you're still using pexpect for boardlib CLI calls
+pexpect==4.9.0
