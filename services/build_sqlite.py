@@ -2,17 +2,17 @@ import os
 import sys
 import sqlite3
 import subprocess
-from dotenv import load_dotenv
+from config import get_settings
 from supabase import create_client, Client
 
 # ---------------------------------------------------
 #  Environment
 # ---------------------------------------------------
 
-load_dotenv()
+settings = get_settings()
 
-SUPABASE_URL = os.environ.get("PUBLIC_SUPABASE_URL")
-SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+SUPABASE_URL = settings.public_supabase_url
+SUPABASE_KEY = settings.supabase_service_role_key
 
 if not SUPABASE_URL or not SUPABASE_KEY:
     raise RuntimeError("Supabase URL or KEY not found")

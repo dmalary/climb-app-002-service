@@ -1,5 +1,9 @@
 # import os
-from dotenv import load_dotenv
+from config import get_settings
+
+settings = get_settings()
+
+# from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import sys
@@ -13,7 +17,7 @@ from routes.export_board import router as export_board_router
 from routes.sync_images import router as sync_images_router
 from routes.render_climb_image import router as render_images_router
 
-load_dotenv()
+# load_dotenv()
 
 app = FastAPI(title="Climb Board Data Service")
 

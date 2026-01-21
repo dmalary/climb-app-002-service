@@ -3,7 +3,7 @@ from pydantic import BaseModel
 import sqlite3
 import os
 from supabase import create_client, Client
-from dotenv import load_dotenv
+from config import get_settings
 from services.build_sqlite import build_or_download_board_db
 from services.build_climb_image import build_climb_image
 from services.climb_loader import load_climb_from_db
@@ -14,10 +14,10 @@ import tempfile
 #  Environment
 # ---------------------------------------------------
 
-load_dotenv()
+settings = get_settings()
 
-SUPABASE_URL = os.environ.get("PUBLIC_SUPABASE_URL")
-SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+SUPABASE_URL = settings.public_supabase_url
+SUPABASE_KEY = settings.supabase_service_role_key
 
 if not SUPABASE_URL or not SUPABASE_KEY:
     raise RuntimeError("Supabase URL or KEY not found")
