@@ -24,7 +24,7 @@ class FetchBoardRequest(BaseModel):
     board: str
     username: str
     password: str | None = None
-
+    # use_stored_session: bool = True
 
 # ---------------------------------------------------
 # Route
@@ -109,12 +109,13 @@ def fetch_user_board_data(data: FetchBoardRequest):
     print(" ", cmd)
 
     try:
-        child = pexpect.spawn(cmd)
+        child = pexpect.spawn(cmd, encoding="utf-8")
         if data.password:
-            child.expect("Password:")  # matches boardlib prompt
+            child.expect("Password:", timeout=23)  # matches boardlib prompt
             child.sendline(data.password)
         child.expect(pexpect.EOF)
-        output = child.before.decode()  # capture stdout/stderr
+        # output = child.before.decode()  # capture stdout/stderr
+        output = child.before  # capture stdout/stderr
     except Exception as e:
         os.remove(tmp_csv_path)
         raise HTTPException(status_code=500, detail=f"boardlib logbook failed: {str(e)}")
