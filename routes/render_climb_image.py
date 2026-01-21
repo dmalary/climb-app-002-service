@@ -50,9 +50,10 @@ def render_climb_image_endpoint(payload: RenderClimbRequest):
     # 2️⃣ Return cached image unless forced
     if not force:
         try:
-            existing = supabase.storage.from_("climb-images").list(board)
+            bucket = settings.supabase_bucket
+            existing = supabase.storage.from_(bucket).list(board)
             if any(obj["name"] == f"{climb_uuid}.png" for obj in existing):
-                public_url = supabase.storage.from_("climb-images").get_public_url(
+                public_url = supabase.storage.from_(bucket).get_public_url(
                     supabase_path
                 )
                 return {
