@@ -23,8 +23,6 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
-/BoardLib
-
 .venv
 .vscode
 .DS_STORE
@@ -32,4 +30,7 @@ tmp
 dist
 __pycache__/
 
+/BoardLib
 /data
+/server
+*.db
