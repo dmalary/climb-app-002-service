@@ -1,8 +1,11 @@
 import os
 import re
+from config import get_settings
+
+settings = get_settings()
 
 BASE_BOARD_DIR = os.path.join(
-    os.path.dirname(__file__),
+    settings.data_dir(__file__),
     "..",
     "data",
     "boards"
