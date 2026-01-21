@@ -4,12 +4,7 @@ from config import get_settings
 
 settings = get_settings()
 
-BASE_BOARD_DIR = os.path.join(
-    settings.data_dir(__file__),
-    "..",
-    "data",
-    "boards"
-)
+BASE_BOARD_DIR = os.path.join(settings.data_dir, "boards")
 
 def resolve_board_image_path(board: str, climb: dict) -> str:
     """

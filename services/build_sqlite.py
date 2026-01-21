@@ -5,19 +5,22 @@ import subprocess
 from config import get_settings
 from supabase import create_client, Client
 
+settings = get_settings()
+
 # ---------------------------------------------------
 #  Environment
 # ---------------------------------------------------
 
-settings = get_settings()
+def get_supabase() -> Client:
+    url = settings.public_supabase_url
+    key = settings.supabase_service_role_key
 
-SUPABASE_URL = settings.public_supabase_url
-SUPABASE_KEY = settings.supabase_service_role_key
-
-if not SUPABASE_URL or not SUPABASE_KEY:
-    raise RuntimeError("Supabase URL or KEY not found")
-
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+    if not url or not key:
+        raise RuntimeError(
+            "Supabase credentials missing. Expected env vars: "
+            "PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY"
+        )
+    return create_client(url, key)
 
 CACHE_DIR = "server/board_dbs"
 BUCKET_NAME = "board-dbs"
