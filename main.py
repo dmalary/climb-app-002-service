@@ -1,9 +1,10 @@
-# import os
-from config import get_settings
+# from dotenv import load_dotenv
+from dotenv import load_dotenv
+load_dotenv()
 
+from config import get_settings
 settings = get_settings()
 
-# from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import sys
