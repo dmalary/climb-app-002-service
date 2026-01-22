@@ -15,4 +15,8 @@ supabase==2.27.2
 pillow==12.1.0
 
 # If you're still using pexpect for boardlib CLI calls
-pexpect==4.9.0
+# pexpect==4.9.0
+
+# load boardlib dependency
+boardlib @ git+https://github.com/lemeryfertitta/BoardLib.git@813b9556b42427389ab8730ec3ed15fa5d0e75a4
+

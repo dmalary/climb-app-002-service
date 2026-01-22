@@ -1,27 +1,23 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-import subprocess
 import os
-import sys
-from typing import List
 from services.build_sqlite import build_or_download_board_db
+from config import get_settings
 
 router = APIRouter(tags=["Public Board Data"])
+settings = get_settings()
 
-def get_python_bin():
-    """
-    Returns the path to the active Python binary (prefer venv Python 3.14 if available).
-    """
-    python_bin = sys.executable
-    if os.path.exists(python_bin):
-        return python_bin
-    return "/usr/bin/python3.14"
-
-# --- Request model ---
 class SyncImagesRequest(BaseModel):
     board: str
     username: str | None = None
     password: str | None = None
+
+def iter_images_recursive(root: str):
+    for dirpath, _, filenames in os.walk(root):
+        for f in filenames:
+            if f.lower().endswith((".jpg", ".jpeg", ".png")):
+                yield os.path.join(dirpath, f)
+
 
 @router.post("/fetch-board-images")
 def fetch_board_images(payload: SyncImagesRequest):
@@ -30,79 +26,52 @@ def fetch_board_images(payload: SyncImagesRequest):
     then runs the boardlib images command and caches images in data/boards/<board>/images.
     """
     board = payload.board.lower().strip()
-    username = payload.username
-    password = payload.password
 
     try:
-        # Step 1: Ensure DB exists
-        db_path = build_or_download_board_db(board=board, username=username, password=password, require="layouts")
+        # 1) Ensure DB exists (needs layouts/images table)
+        db_path = build_or_download_board_db(
+            board=board,
+            username=payload.username,
+            password=payload.password,
+            require="layouts",
+        )
         if not os.path.exists(db_path):
             raise HTTPException(status_code=500, detail=f"DB file not found at {db_path}")
 
-        # Step 2: Prepare images directory
-        images_dir = os.path.join("data", "boards", board, "images")
+        # 2) Images root directory (BoardLib will create nested subfolders under this)
+        images_dir = os.path.join(settings.data_dir, "boards", board, "images")
         os.makedirs(images_dir, exist_ok=True)
 
-        # If images already exist, skip fetching
-        existing_images = [
-            f for f in os.listdir(images_dir)
-            if f.lower().endswith((".jpg", ".jpeg", ".png"))
-        ]
-        if existing_images:
+        # 3) If already cached (recursive), return cached
+        existing = list(iter_images_recursive(images_dir))
+        if existing:
             return {
                 "board": board,
                 "status": "cached",
-                "image_count": len(existing_images),
-                "sample": existing_images[:5]
+                "image_count": len(existing),
+                "sample": [os.path.relpath(existing[0], images_dir)],
             }
 
-        # Step 3: Run boardlib images command
-        python_bin = get_python_bin()
-        cmd = [
-            python_bin, "-m", "boardlib",
-            "images",
-            board,
-            db_path,
-            images_dir
-        ]
-        # if username:
-        #     cmd += ["--username", username]
+        # 4) Import BoardLib directly (no subprocess)
+        try:
+            from boardlib.api.aurora import download_images
+        except Exception as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to import BoardLib. Is 'boardlib' installed in this env? {e}",
+            )
 
-        # check if terminal prompt for pass, if yes then update re sync_user
+        download_images(board, db_path, images_dir)
 
-        # stdin_input = f"{password}\n" if password else None
-        stdin_input = None  # not needed
-
-        print(f"📥 Running boardlib images: {' '.join(cmd)}")
-        result = subprocess.run(
-            cmd,
-            # input=stdin_input,
-            capture_output=True,
-            text=True,
-            check=False
-        )
-
-        print("=== boardlib stdout ===")
-        print(result.stdout)
-        print("=== boardlib stderr ===")
-        print(result.stderr)
-
-        if result.returncode != 0:
-            raise HTTPException(status_code=500, detail=f"boardlib images failed: {result.stderr or result.stdout}")
-
-        # Step 4: List downloaded images
-        downloaded_images = [
-            f for f in os.listdir(images_dir)
-            if f.lower().endswith((".jpg", ".jpeg", ".png"))
-        ]
-
+        downloaded = list(iter_images_recursive(images_dir))
         return {
             "board": board,
             "status": "fetched",
-            "image_count": len(downloaded_images),
-            # "images": downloaded_images,
-            "sample": downloaded_images[:1]
+            "image_count": len(downloaded),
+            "sample": [os.path.relpath(downloaded[0], images_dir)] if downloaded else [],
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

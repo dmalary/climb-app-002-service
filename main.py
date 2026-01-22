@@ -8,6 +8,7 @@ settings = get_settings()
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import sys
+import logging
 
 print("🔍 FastAPI running with Python:", sys.executable)
 
@@ -21,6 +22,15 @@ from routes.render_climb_image import router as render_images_router
 # load_dotenv()
 
 app = FastAPI(title="Climb Board Data Service")
+
+log = logging.getLogger("uvicorn.error")
+@app.on_event("startup")
+def _startup_check():
+    try:
+        import boardlib
+        log.info("✅ boardlib import OK: %s", getattr(boardlib, "__file__", "no __file__"))
+    except Exception:
+        log.exception("❌ boardlib import FAILED")
 
 # --- CORS (allow Express backend for now — tighten in prod) ---
 app.add_middleware(

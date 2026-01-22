@@ -7,9 +7,13 @@ def load_climb_from_db(db_path: str, climb_uuid: str) -> dict | None:
 
     cur.execute(
         """
-        SELECT *
-        FROM climbs
-        WHERE uuid = ?
+        SELECT
+            c.*,
+            p.image_filename AS base_image_filename
+        FROM climbs c
+        LEFT JOIN product_sizes_layouts_sets p
+            ON p.id = c.product_sizes_layouts_set_id
+        WHERE c.uuid = ?
         LIMIT 1
         """,
         (climb_uuid,)
@@ -17,7 +21,6 @@ def load_climb_from_db(db_path: str, climb_uuid: str) -> dict | None:
 
     row = cur.fetchone()
     conn.close()
-
     if not row:
         return None
 
