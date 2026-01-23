@@ -45,6 +45,15 @@ def get_tables(db_path: str) -> set[str]:
     conn.close()
     return tables
 
+def climbs_has_name_column(db_path: str) -> bool:
+    try:
+        conn = sqlite3.connect(db_path)
+        cur = conn.execute("PRAGMA table_info(climbs)")
+        cols = {r[1] for r in cur.fetchall()}
+        conn.close()
+        return bool({"name", "climb_name", "title"} & cols)
+    except Exception:
+        return False
 
 def has_image_capability(db_path: str) -> bool:
     """
@@ -68,10 +77,11 @@ def has_logbook_capability(db_path: str) -> bool:
     """
     try:
         tables = get_tables(db_path)
-        return {
-            "climbs",
-            "product_sizes_layouts_sets",
-        }.issubset(tables)
+        ok_tables = {"climbs", "product_sizes_layouts_sets"}.issubset(tables)
+        if not ok_tables:
+            return False
+        # ✅ NEW: ensure climbs has a name-like column
+        return climbs_has_name_column(db_path)
     except Exception:
         return False
     
